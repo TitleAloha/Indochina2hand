@@ -1,7 +1,7 @@
 // ============================================================
 // SELLER (Thailand) views — list products, earn sales points
 // ============================================================
-const { useState: useStateS } = React;
+const { useState: useStateS, useRef: useRefS } = React;
 
 function SellerListings({ lang, products, onAdd, pushToast }) {
   const [showForm, setShowForm] = useStateS(false);
@@ -43,25 +43,78 @@ function SellerListings({ lang, products, onAdd, pushToast }) {
 
 function SellForm({ lang, onSubmit, onCancel }) {
   const [form, setForm] = useStateS({ name: '', cat: 'bags', priceTHB: '', condition: 'A' });
+  const [imageFile, setImageFile] = useStateS(null);
+  const [imagePreview, setImagePreview] = useStateS(null);
+  const [uploading, setUploading] = useStateS(false);
+  const fileRef = useRefS(null);
   const cats = Object.keys(CAT_LABEL);
   const conds = ['A', 'B', 'C'];
   const valid = form.name.trim() && form.priceTHB;
-  function submit(e) {
+
+  function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = ev => setImagePreview(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
+  async function submit(e) {
     e.preventDefault();
     if (!valid) return;
+    setUploading(true);
+    let imageUrl = null;
+    if (imageFile) {
+      const ext = (imageFile.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = Date.now() + '-' + Math.random().toString(36).slice(2) + '.' + ext;
+      const { error: upErr } = await sb.storage.from('product-images').upload(path, imageFile, { upsert: true });
+      if (!upErr) {
+        const { data } = sb.storage.from('product-images').getPublicUrl(path);
+        imageUrl = data.publicUrl;
+      }
+    }
+    setUploading(false);
     onSubmit({
       name: { th: form.name, vn: form.name, en: form.name },
       cat: form.cat, priceTHB: Number(form.priceTHB), condition: form.condition,
+      imageUrl,
     });
   }
+
   return (
     <Card className="pad sell-form">
       <form onSubmit={submit}>
         <div className="sell-grid">
-          <div className="sell-drop">
-            <span className="sell-drop-icon">📷</span>
-            <span>{t({ th: 'ลากรูปสินค้ามาวาง', vn: 'Kéo ảnh vào đây', en: 'Drop product photos' }, lang)}</span>
-            <small className="muted">{t({ th: 'หรือคลิกเพื่ออัปโหลด', vn: 'hoặc bấm để tải lên', en: 'or click to upload' }, lang)}</small>
+          <div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handleFile}
+            />
+            <div
+              className="sell-drop"
+              onClick={() => fileRef.current && fileRef.current.click()}
+              style={imagePreview ? { padding: 0, overflow: 'hidden', minHeight: 180 } : { cursor: 'pointer' }}
+            >
+              {imagePreview
+                ? <img src={imagePreview} style={{ width: '100%', minHeight: 180, objectFit: 'cover', display: 'block' }} alt="preview" />
+                : <>
+                    <span className="sell-drop-icon">📷</span>
+                    <span>{t({ th: 'อัปโหลดหรือถ่ายภาพสินค้า', vn: 'Tải lên hoặc chụp ảnh', en: 'Upload or take a photo' }, lang)}</span>
+                    <small className="muted">{t({ th: 'คลิกเพื่อเลือกไฟล์ / เปิดกล้อง', vn: 'Nhấn chọn file / mở camera', en: 'Click to choose / open camera' }, lang)}</small>
+                  </>
+              }
+            </div>
+            {imagePreview && (
+              <button type="button" className="btn btn-ghost btn-sm" style={{ width: '100%', marginTop: 6 }}
+                onClick={() => { setImageFile(null); setImagePreview(null); }}>
+                🔄 {t({ th: 'เปลี่ยนรูป', vn: 'Đổi ảnh', en: 'Change photo' }, lang)}
+              </button>
+            )}
           </div>
           <div className="sell-fields">
             <label className="fld">
@@ -93,7 +146,11 @@ function SellForm({ lang, onSubmit, onCancel }) {
             </div>
             <div className="sell-actions">
               <Button variant="ghost" onClick={onCancel}>{t({ th: 'ยกเลิก', vn: 'Hủy', en: 'Cancel' }, lang)}</Button>
-              <Button type="submit" icon="✓">{t({ th: 'ลงขายเลย', vn: 'Đăng bán', en: 'List it' }, lang)}</Button>
+              <Button type="submit" icon={uploading ? '⏳' : '✓'} disabled={uploading}>
+                {uploading
+                  ? t({ th: 'กำลังอัปโหลด...', vn: 'Đang tải...', en: 'Uploading...' }, lang)
+                  : t({ th: 'ลงขายเลย', vn: 'Đăng bán', en: 'List it' }, lang)}
+              </Button>
             </div>
           </div>
         </div>

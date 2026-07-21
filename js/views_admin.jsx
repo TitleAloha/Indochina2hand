@@ -115,14 +115,45 @@ function AdminDemand({ lang, demands }) {
   );
 }
 
-function AdminMatching({ lang, products, demands, onMatch, pushToast }) {
-  const open = products.filter(p => ['review', 'listed'].includes(p.status));
+function AdminMatching({ lang, products, demands, onMatch, onApprove, pushToast }) {
+  const pending = products.filter(p => p.status === 'review');
+  const open    = products.filter(p => p.status === 'listed');
+
   return (
     <div className="view">
       <SectionHead
         title={t({ th: 'จับคู่สินค้า (Matching)', vn: 'Ghép sản phẩm', en: 'Matching' }, lang)}
-        sub={t({ th: 'จับคู่สินค้าไทยที่ลงขาย เข้ากับดีมานด์ของเวียดนาม', vn: 'Ghép hàng Thái với nhu cầu VN', en: 'Pair Thai listings with Vietnamese demand' }, lang)}
+        sub={t({ th: 'อนุมัติสินค้าก่อน แล้วจับคู่กับดีมานด์เวียดนาม', vn: 'Duyệt hàng rồi ghép với nhu cầu VN', en: 'Approve products, then pair with VN demand' }, lang)}
       />
+
+      {/* ---- Pending review ---- */}
+      <div style={{fontSize:'12px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'var(--muted)',marginBottom:4}}>
+        ⏳ {t({ th: 'รอตรวจสอบ', vn: 'Chờ duyệt', en: 'Pending review' }, lang)} ({pending.length})
+      </div>
+      <div className="match-list">
+        {pending.map(p => (
+          <Card key={p.id} className="pad match-row" style={{borderLeft:'3px solid var(--accent)'}}>
+            <ProductThumb product={p} lang={lang} size="sm" />
+            <div className="match-info">
+              <div className="match-name">{t(p.name, lang)}</div>
+              <div className="match-meta">{p.code} · {p.seller} · {fmtTHB(p.priceTHB)}</div>
+            </div>
+            <div style={{marginLeft:'auto'}}>
+              <Button size="sm" variant="soft" onClick={() => onApprove(p.id)}>
+                ✓ {t({ th: 'อนุมัติ', vn: 'Duyệt', en: 'Approve' }, lang)}
+              </Button>
+            </div>
+          </Card>
+        ))}
+        {pending.length === 0 && (
+          <p className="muted small">{t({ th: 'ไม่มีสินค้ารอตรวจสอบ', vn: 'Không có sản phẩm chờ duyệt', en: 'No products pending review' }, lang)}</p>
+        )}
+      </div>
+
+      {/* ---- Ready to match ---- */}
+      <div style={{fontSize:'12px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.07em',color:'var(--muted)',marginTop:8,marginBottom:4}}>
+        🔗 {t({ th: 'พร้อมจับคู่', vn: 'Sẵn ghép', en: 'Ready to match' }, lang)} ({open.length})
+      </div>
       <div className="match-list">
         {open.map(p => {
           const candidates = demands.filter(d => d.cat === p.cat);
@@ -146,7 +177,7 @@ function AdminMatching({ lang, products, demands, onMatch, pushToast }) {
           );
         })}
         {open.length === 0 && (
-          <p className="muted">{t({ th: 'ไม่มีสินค้าที่ต้องจับคู่ในขณะนี้', vn: 'Không có sản phẩm cần ghép', en: 'Nothing to match right now' }, lang)}</p>
+          <p className="muted small">{t({ th: 'อนุมัติสินค้าด้านบนก่อน เพื่อเริ่มจับคู่', vn: 'Hãy duyệt sản phẩm ở trên trước', en: 'Approve products above first to start matching' }, lang)}</p>
         )}
       </div>
     </div>

@@ -112,6 +112,25 @@ function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // auto-refresh profile when the tab regains focus
+  // so role changes made in Supabase Table Editor take effect without sign-out
+  useAppEffect(() => {
+    if (!session) return;
+    const onFocus = async () => {
+      const fresh = await refreshProfile(session.user.id);
+      if (!fresh) return;
+      setRole(r => {
+        if (fresh.role !== r) {
+          setSub((NAV[fresh.role][0] && NAV[fresh.role][0].id) || 'main');
+          return fresh.role;
+        }
+        return r;
+      });
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [session]);
+
   // once signed in: load profile + app data
   useAppEffect(() => {
     if (session === undefined) return;
@@ -141,8 +160,16 @@ function App() {
       condition: form.condition,
       seller_id: session.user.id,
       hue: CAT_HUE[form.cat] || 155,
+      image_url: form.imageUrl || null,
     });
     if (error) { pushToast(error.message); throw error; }
+    await refreshAll();
+  }
+
+  async function approveProduct(productId) {
+    const { error } = await sb.from('products').update({ status: 'listed' }).eq('id', productId);
+    if (error) { pushToast(error.message); return; }
+    pushToast(t({ th: 'อนุมัติสินค้าแล้ว! พร้อมแสดงในร้าน', vn: 'Đã duyệt sản phẩm!', en: 'Product approved and listed!' }, lang));
     await refreshAll();
   }
 
@@ -197,7 +224,7 @@ function App() {
   if (role === 'admin') {
     if (sub === 'overview') content = <AdminOverview lang={lang} onGo={setSub} products={products} demands={demands} transactions={transactions} orders={orders} pointsLedger={pointsLedger} />;
     else if (sub === 'demand') content = <AdminDemand lang={lang} demands={demands} />;
-    else if (sub === 'matching') content = <AdminMatching lang={lang} products={products} demands={demands} onMatch={doMatch} pushToast={pushToast} />;
+    else if (sub === 'matching') content = <AdminMatching lang={lang} products={products} demands={demands} onMatch={doMatch} onApprove={approveProduct} pushToast={pushToast} />;
     else if (sub === 'finance') content = <AdminFinance lang={lang} transactions={transactions} onAdvance={advanceTransaction} pushToast={pushToast} />;
   } else if (role === 'seller') {
     if (sub === 'listings') content = <SellerListings lang={lang} products={products.filter(p => p.seller_id === profile.id)} onAdd={addProduct} pushToast={pushToast} />;
